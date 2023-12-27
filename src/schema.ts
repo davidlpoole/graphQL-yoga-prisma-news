@@ -1,5 +1,6 @@
 import { makeExecutableSchema } from '@graphql-tools/schema'
-import { v4 as uuidv4 } from 'uuid'
+import { GraphQLContext } from './context'
+import { Link } from '@prisma/client'
 
 const typeDefinitions = /* GraphQL */ `
   type Query {
@@ -17,39 +18,29 @@ const typeDefinitions = /* GraphQL */ `
     url: String!
   }
 `
-
-type Link = {
-  id: string
-  url: string
-  description: string
-}
-
-const links: Link[] = [
-  {
-    id: 'link-54b97299-d361-45e7-bdbc-3e5226528f84',
-    url: 'https://graphql-yoga.com',
-    description: 'The easiest way of setting up a GraphQL server',
-  },
-]
-
 const resolvers = {
   Query: {
-    info: () => `This is the API of a Hackernews Clone`,
-    feed: () => links,
+    info: () => `This is the API of Hackernews Clone`,
+    feed: (parent: unknown, args: {}, context: GraphQLContext) =>
+      context.prisma.link.findMany(),
+  },
+  Link: {
+    id: (parent: Link) => parent.id,
+    description: (parent: Link) => parent.description,
+    url: (parent: Link) => parent.url,
   },
   Mutation: {
-    postLink: (parent: unknown, args: { description: string; url: string }) => {
-      const id = uuidv4()
-
-      const link: Link = {
-        id: `link-${id}`,
-        description: args.description,
-        url: args.url,
-      }
-
-      links.push(link)
-
-      return link
+    async postLink(
+      parent: unknown,
+      args: { description: string; url: string },
+      context: GraphQLContext
+    ) {
+      return await context.prisma.link.create({
+        data: {
+          description: args.description,
+          url: args.url,
+        },
+      })
     },
   },
 }
