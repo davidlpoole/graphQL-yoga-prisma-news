@@ -3,12 +3,11 @@ import { GraphQLContext } from './context'
 import { Link, Comment } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { GraphQLError } from 'graphql'
-import { assert } from 'console'
 
 const typeDefinitions = /* GraphQL */ `
   type Query {
     info: String!
-    feed: [Link!]!
+    feed(filterNeedle: String, skip: Int, take: Int): [Link!]!
     comment(id: ID!): Comment
     link(id: ID!): Link
   }
@@ -34,8 +33,39 @@ const typeDefinitions = /* GraphQL */ `
 const resolvers = {
   Query: {
     info: () => `This is the API of Hackernews Clone`,
-    feed: (parent: unknown, args: {}, context: GraphQLContext) =>
-      context.prisma.link.findMany(),
+    feed: (
+      parent: unknown,
+      args: { filterNeedle?: string; skip: number; take: number },
+      context: GraphQLContext
+    ) => {
+      const where = args.filterNeedle
+        ? {
+            OR: [
+              { description: { contains: args.filterNeedle } },
+              { url: { contains: args.filterNeedle } },
+            ],
+          }
+        : {}
+
+      const take = applyMinMaxConstraints({
+        min: 1,
+        max: 50,
+        value: args.take ?? 30,
+        name: 'take',
+      })
+
+      const skip = applyMinMaxConstraints({
+        min: 0,
+        value: args.skip ?? 0,
+        name: 'skip',
+      })
+
+      return context.prisma.link.findMany({
+        where,
+        skip,
+        take,
+      })
+    },
     comment: (parent: unknown, args: { id: string }, context: GraphQLContext) =>
       context.prisma.comment.findUnique({
         where: { id: parseInt(args.id) },
@@ -137,6 +167,27 @@ function isValidUrl(urlString: string) {
   } catch (e) {
     return null
   }
+}
+
+function applyMinMaxConstraints(params: {
+  min: number
+  max?: number
+  value: number
+  name: string
+}) {
+  if (!params.max && params.value < params.min) {
+    throw new GraphQLError(
+      `'${params.name}' argument value '${params.value}' must be greater than '${params.min}'.`
+    )
+  } else if (
+    params.max &&
+    (params.value < params.min || params.value > params.max)
+  ) {
+    throw new GraphQLError(
+      `'${params.name}' argument value '${params.value}' must be between '${params.min}' to '${params.max}'.`
+    )
+  }
+  return params.value
 }
 
 export const schema = makeExecutableSchema({
