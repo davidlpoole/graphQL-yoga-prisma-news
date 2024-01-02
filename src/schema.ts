@@ -3,48 +3,16 @@ import { GraphQLContext } from './context'
 import { Link, Comment } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { GraphQLError } from 'graphql'
+import { typeDefinitions } from './schema_types'
+import {
+  applyMinMaxConstraints,
+  isValidUrl,
+  parseIntSafe,
+} from './schema_utils'
+import { hash } from 'bcryptjs'
+import { sign } from 'jsonwebtoken'
+import { APP_SECRET } from './auth'
 
-const typeDefinitions = /* GraphQL */ `
-  type Query {
-    info: String!
-    feed(filterNeedle: String, skip: Int, take: Int): [Link!]!
-    comment(id: ID!): Comment
-    link(id: ID!): Link
-  }
-
-  type Mutation {
-    postLink(url: String!, description: String!): Link!
-    postCommentOnLink(linkId: ID!, body: String!): Comment!
-    signup(email: String!, password: String!, name: String!): AuthPayload
-    login(email: String!, password: String!): AuthPayload
-  }
-
-  type Link {
-    id: ID!
-    description: String!
-    url: String!
-    comments: [Comment!]!
-    postedBy: User
-  }
-
-  type Comment {
-    id: ID!
-    body: String!
-    link: Link!
-  }
-
-  type AuthPayload {
-    token: String
-    user: User
-  }
-
-  type User {
-    id: String!
-    name: String!
-    email: String!
-    links: [Link!]!
-  }
-`
 const resolvers = {
   Query: {
     info: () => `This is the API of Hackernews Clone`,
@@ -151,7 +119,6 @@ const resolvers = {
           },
         })
         .catch((err: unknown) => {
-          console.log('yo', err)
           if (
             err instanceof PrismaClientKnownRequestError &&
             err.code === 'P2003'
@@ -166,43 +133,19 @@ const resolvers = {
         })
       return newComment
     },
+    async signup(
+      parent: unknown,
+      args: { email: string; password: string; name: string },
+      context: GraphQLContext
+    ) {
+      const password = await hash(args.password, 10)
+      const user = await context.prisma.user.create({
+        data: { ...args, password },
+      })
+      const token = sign({ userId: user.id }, APP_SECRET)
+      return { token, user }
+    },
   },
-}
-
-function parseIntSafe(value: string): number | null {
-  if (/^(\d+)$/.test(value)) {
-    return parseInt(value, 10)
-  }
-  return null
-}
-
-function isValidUrl(urlString: string) {
-  try {
-    return new URL(urlString)
-  } catch (e) {
-    return null
-  }
-}
-
-function applyMinMaxConstraints(params: {
-  min: number
-  max?: number
-  value: number
-  name: string
-}) {
-  if (!params.max && params.value < params.min) {
-    throw new GraphQLError(
-      `'${params.name}' argument value '${params.value}' must be greater than '${params.min}'.`
-    )
-  } else if (
-    params.max &&
-    (params.value < params.min || params.value > params.max)
-  ) {
-    throw new GraphQLError(
-      `'${params.name}' argument value '${params.value}' must be between '${params.min}' to '${params.max}'.`
-    )
-  }
-  return params.value
 }
 
 export const schema = makeExecutableSchema({
