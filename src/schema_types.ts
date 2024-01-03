@@ -12,6 +12,7 @@ export const typeDefinitions = /* GraphQL */ `
     postCommentOnLink(linkId: ID!, body: String!): Comment!
     signup(email: String!, password: String!, name: String!): AuthPayload
     login(email: String!, password: String!): AuthPayload
+    vote(linkID: ID!): Vote
   }
 
   type Link {
@@ -20,6 +21,7 @@ export const typeDefinitions = /* GraphQL */ `
     url: String!
     comments: [Comment!]!
     postedBy: User
+    votes: [Vote!]!
   }
 
   type Comment {
@@ -42,5 +44,11 @@ export const typeDefinitions = /* GraphQL */ `
 
   type Subscription {
     newLink: Link!
+  }
+
+  type Vote {
+    id: ID!
+    link: Link!
+    user: User!
   }
 `
