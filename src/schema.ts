@@ -1,6 +1,6 @@
 import { makeExecutableSchema } from '@graphql-tools/schema'
 import { GraphQLContext } from './context'
-import { Link, Comment } from '@prisma/client'
+import { Link, Comment, User } from '@prisma/client'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
 import { GraphQLError } from 'graphql'
 import { typeDefinitions } from './schema_types'
@@ -74,6 +74,15 @@ const resolvers = {
           linkId: parent.id,
         },
       }),
+    postedBy(parent: Link, args: {}, context: GraphQLContext) {
+      if (!parent.postedById) {
+        return null
+      }
+
+      return context.prisma.link
+        .findUnique({ where: { id: parent.id } })
+        .postedBy()
+    },
   },
   Comment: {
     id: (parent: Comment) => parent.id,
@@ -89,12 +98,22 @@ const resolvers = {
       }
     },
   },
+  User: {
+    id: (parent: User) => parent.id,
+    name: (parent: User) => parent.name,
+    email: (parent: User) => parent.email,
+    links: (parent: User, args: {}, context: GraphQLContext) =>
+      context.prisma.user.findUnique({ where: { id: parent.id } }).links(),
+  },
   Mutation: {
     async postLink(
       parent: unknown,
       args: { description: string; url: string },
       context: GraphQLContext
     ) {
+      if (context.currentUser === null) {
+        throw new Error('Not authenticated')
+      }
       const postUrl = isValidUrl(args.url)
       if (!postUrl)
         return new GraphQLError(`Cannot post link with invalid url ${args.url}`)
@@ -102,6 +121,7 @@ const resolvers = {
         data: {
           description: args.description,
           url: postUrl.href,
+          postedBy: { connect: { id: context.currentUser.id } },
         },
       })
       return newLink
