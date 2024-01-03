@@ -39,4 +39,8 @@ export const typeDefinitions = /* GraphQL */ `
     email: String!
     links: [Link!]!
   }
+
+  type Subscription {
+    newLink: Link!
+  }
 `

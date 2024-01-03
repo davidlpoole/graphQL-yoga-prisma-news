@@ -114,16 +114,21 @@ const resolvers = {
       if (context.currentUser === null) {
         throw new Error('Not authenticated')
       }
+
       const postUrl = isValidUrl(args.url)
       if (!postUrl)
         return new GraphQLError(`Cannot post link with invalid url ${args.url}`)
+
       const newLink = await context.prisma.link.create({
         data: {
-          description: args.description,
           url: postUrl.href,
+          description: args.description,
           postedBy: { connect: { id: context.currentUser.id } },
         },
       })
+
+      context.pubSub.publish('newLink', { newLink })
+
       return newLink
     },
     async postCommentOnLink(
@@ -186,6 +191,12 @@ const resolvers = {
       }
       const token = sign({ userId: user.id }, APP_SECRET)
       return { token, user }
+    },
+  },
+  Subscription: {
+    newLink: {
+      subscribe: (parent: unknown, args: {}, context: GraphQLContext) =>
+        context.pubSub.subscribe('newLink'),
     },
   },
 }
