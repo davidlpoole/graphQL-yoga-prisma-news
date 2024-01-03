@@ -57,6 +57,12 @@ const resolvers = {
       context.prisma.link.findUnique({
         where: { id: parseInt(args.id) },
       }),
+    me(parent: unknown, args: {}, context: GraphQLContext) {
+      if (context.currentUser === null) {
+        throw new Error('Unauthenticated!')
+      }
+      return context.currentUser
+    },
   },
   Link: {
     id: (parent: Link) => parent.id,

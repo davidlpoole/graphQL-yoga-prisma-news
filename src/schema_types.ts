@@ -4,6 +4,7 @@ export const typeDefinitions = /* GraphQL */ `
     feed(filterNeedle: String, skip: Int, take: Int): [Link!]!
     comment(id: ID!): Comment
     link(id: ID!): Link
+    me: User!
   }
 
   type Mutation {
