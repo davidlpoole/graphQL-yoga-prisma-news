@@ -83,6 +83,8 @@ const resolvers = {
         .findUnique({ where: { id: parent.id } })
         .postedBy()
     },
+    votes: (parent: Link, args: {}, context: GraphQLContext) =>
+      context.prisma.link.findUnique({ where: { id: parent.id } }).votes(),
   },
   Comment: {
     id: (parent: Comment) => parent.id,
@@ -104,6 +106,12 @@ const resolvers = {
     email: (parent: User) => parent.email,
     links: (parent: User, args: {}, context: GraphQLContext) =>
       context.prisma.user.findUnique({ where: { id: parent.id } }).links(),
+  },
+  Vote: {
+    link: (parent: User, args: {}, context: GraphQLContext) =>
+      context.prisma.vote.findUnique({ where: { id: parent.id } }).link(),
+    user: (parent: User, args: {}, context: GraphQLContext) =>
+      context.prisma.vote.findUnique({ where: { id: parent.id } }).user(),
   },
   Mutation: {
     async postLink(
@@ -191,6 +199,40 @@ const resolvers = {
       }
       const token = sign({ userId: user.id }, APP_SECRET)
       return { token, user }
+    },
+    async vote(
+      parent: unknown,
+      args: { linkId: string },
+      context: GraphQLContext
+    ) {
+      if (!context.currentUser) {
+        throw new GraphQLError('You must login in order to vote!')
+      }
+      const userId = context.currentUser.id
+
+      const vote = context.prisma.vote.findUnique({
+        where: {
+          linkId_userId: {
+            linkId: Number(args.linkId),
+            userId: userId,
+          },
+        },
+      })
+
+      if (vote !== null) {
+        throw new Error(`Already voted for link: ${args.linkId}`)
+      }
+
+      const newVote = await context.prisma.vote.create({
+        data: {
+          user: { connect: { id: userId } },
+          link: { connect: { id: Number(args.linkId) } },
+        },
+      })
+
+      context.pubSub.publish('newVote', { newVote })
+
+      return newVote
     },
   },
   Subscription: {
