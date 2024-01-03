@@ -9,7 +9,7 @@ import {
   isValidUrl,
   parseIntSafe,
 } from './schema_utils'
-import { hash } from 'bcryptjs'
+import { compare, hash } from 'bcryptjs'
 import { sign } from 'jsonwebtoken'
 import { APP_SECRET } from './auth'
 
@@ -142,6 +142,22 @@ const resolvers = {
       const user = await context.prisma.user.create({
         data: { ...args, password },
       })
+      const token = sign({ userId: user.id }, APP_SECRET)
+      return { token, user }
+    },
+    async login(
+      parent: unknown,
+      args: { email: string; password: string },
+      context: GraphQLContext
+    ) {
+      const user = await context.prisma.user.findUnique({
+        where: { email: args.email },
+      })
+      if (!user) throw new Error('No such user found')
+      const valid = await compare(args.password, user.password)
+      if (!valid) {
+        throw new Error('Invalid password')
+      }
       const token = sign({ userId: user.id }, APP_SECRET)
       return { token, user }
     },
