@@ -210,7 +210,11 @@ const resolvers = {
       }
       const userId = context.currentUser.id
 
-      const vote = context.prisma.vote.findUnique({
+      if (!args.linkId) {
+        throw new Error('no link id given')
+      }
+
+      const vote = await context.prisma.vote.findUnique({
         where: {
           linkId_userId: {
             linkId: Number(args.linkId),
@@ -239,6 +243,10 @@ const resolvers = {
     newLink: {
       subscribe: (parent: unknown, args: {}, context: GraphQLContext) =>
         context.pubSub.subscribe('newLink'),
+    },
+    newVote: {
+      subscribe: (parent: unknown, args: {}, context: GraphQLContext) =>
+        context.pubSub.subscribe('newVote'),
     },
   },
 }
